@@ -1,4 +1,4 @@
-setwd('/home/marcos/Documentos/01_IAA/IAA007_008_MachineLearning/Praticas/02_Pratica_Cancer_de_Mama/')
+setwd('/home/marcos/Documentos/01_IAA/IAA007_008_MachineLearning/Praticas/MachineLearning/Cancer_de_Mama_Classificacao/')
 getwd()
 
 # importando bibliotecas
@@ -18,14 +18,13 @@ dados <- read.csv('Cancer_de_Mama_Dados.csv')
 
 # analisando o dataframe
 summary(dados)
-dados
+View(dados)
 names(dados)
 
 # tratando valores missing
 dados$Id <- NULL # excluir a coluna "Id"
 #imp <- mice(dados)
 #dados <- complete(imp,1)
-
 
 # separando base treino - 80% e teste 20%
 set.seed(1912)
@@ -85,10 +84,14 @@ names(dados_novos_casos)
 dados_novos_casos
 
 predict.rna <- predict(rna, dados_novos_casos)
+predict.rna
 
 dados_novos_casos$Class <- NULL
 dados_novos_casos$Id <- NULL
 resultado <- cbind(dados_novos_casos, predict.rna)
+resultado
+
+confusionMatrix(predict.rna,resultado$predict.rna)
 
 # executar um modelo com os melhores hiperparâmetros
 grid <- expand.grid(size = c(1), decay = c(0.1))

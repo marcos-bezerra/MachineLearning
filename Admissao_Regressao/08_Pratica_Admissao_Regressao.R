@@ -1,4 +1,4 @@
-setwd('/home/marcos/Documentos/01_IAA/IAA007_008_MachineLearning/Praticas/08_Admissao_Regressao/')
+setwd('/home/marcos/Documentos/01_IAA/IAA007_008_MachineLearning/Praticas/MachineLearning/Admissao_Regressao/')
 getwd()
 
 # instalar bibliotecas
@@ -13,7 +13,7 @@ library(caret)
 library(mice)
 
 # carregando a base de dados
-dados <- read.csv("Admissao_Dados.csv")
+dados <- read.csv("https://raw.githubusercontent.com/marcos-bezerra/MachineLearning/main/Admissao_Regressao/Admissao_Dados.csv")
 
 View(dados)
 summary(dados)

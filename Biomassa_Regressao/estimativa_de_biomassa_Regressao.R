@@ -1,10 +1,10 @@
-setwd('/home/marcos/Documentos/01_IAA/IAA007_008_MachineLearning/Praticas/MachineLearning/Biomassa_Regressao/')
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 getwd()
 
 # instalar bibliotecas
-install.packages("caret")
-install.packages("e1071")
-install.packages("mlbench")
+#install.packages("caret")
+#install.packages("e1071")
+#install.packages("mlbench")
 install.packages("mice")
 
 # carregando as bibliotecas
@@ -64,10 +64,9 @@ The final values used for the model were size = 5 and decay = 0.1
 
 # Calculo das predições para a base teste
 predicoes.rna <- predict(rna, teste)
-predicoes.rna
 
-# Instalando pacote para cálculo das métricas Metrics - (rmse)
-#install.packages("Metrics")
+# Cálculo das métricas Metrics - (rmse)
+install.packages("Metrics")
 library(Metrics)
 
 rmse(teste$biomassa, predicoes.rna)

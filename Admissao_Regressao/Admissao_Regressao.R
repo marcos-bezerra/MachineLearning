@@ -4,10 +4,12 @@ getwd()
 # instalar bibliotecas
 install.packages("caret")
 install.packages("e1071")
+install.packages("Metrics")
 install.packages("mlbench")
 install.packages("mice")
 
 # carregando as bibliotecas
+library(Metrics)
 library(mlbench)
 library(caret)
 library(mice)
@@ -31,14 +33,54 @@ treino <- dados[indices,]
 teste <- dados[-indices,]
 
 
-###############################                 ##########################
-#                               RNA - Regressão                          #
-###############################                 ##########################
+##############################                   ########################
+#                             Funções - Regressão                       #
+##############################                   ########################
+
+# Regresão RMSE - raiz quadrada do erro médio
+rmse_ <- function(valor_real, valor_estimado) {
+  return(sqrt(sum((valor_real-valor_estimado)^2) / nrow(teste)))
+}
+
+# Regressão R2 - Coeficiente de Determinação Múltipla
+r2 <- function(valor_real, valor_estimado) {
+  return(1 - (sum((valor_real - valor_estimado)^2) /
+                sum((valor_real - mean(valor_real))^2)))
+}
+  
+# Regressão Syx - Erro padrão de Estimativa
+syx <- function(valor_real, valor_estimado) {
+  return(sum((valor_real-valor_estimado)^2) /
+           (nrow(teste)-ncol(teste)))
+}
+
+# Regressão Pearson com CV
+pearson <- function(valor_real, valor_estimado) {
+  return(
+    sum(
+      (valor_real-mean(valor_real)) * (valor_estimado-mean(valor_estimado))
+    ) /
+      (
+        sqrt(sum(valor_real-mean(valor_real))^2)*
+          sqrt(sum(valor_estimado-mean(valor_estimado))^2)
+      )
+  )
+}
+
+# Regressão MAE - Média Absoluta do erro
+mae <- function(valor_real, valor_estimado) {
+  return(sum(abs(valor_real-valor_estimado)) / nrow(teste))
+}
+
+
+##############################                 ##########################
+#                              RNA - Regressão                          #
+##############################                 ##########################
 
 # Treinar o modelo com Hold-Out
 set.seed(37)
-rna <- train(ChanceOfAdmit~., data=treino, method="nnet", linout=T, trace=FALSE)
-rna
+rna_hold_out <- train(ChanceOfAdmit~., data=treino, method="nnet", linout=TRUE, trace=FALSE)
+rna_hold_out
 "
 Neural Network 
 
@@ -62,76 +104,47 @@ Resampling results across tuning parameters:
   5     1e-01  0.06863512  0.7660235  0.05191373
 
 RMSE was used to select the optimal model using the smallest value.
-The final values used for the model were size = 5 and decay = 0.1
+The final values used for the model were size = 5 and decay = 0.1.
 "
 
 # Calculo das predições para a base teste
-predicoes.rna <- predict(rna, teste)
+predicoes.rna_hold_out <- predict(rna_hold_out, teste)
 
 # Cálculo das métricas Metrics - (rmse)
-install.packages("Metrics")
-library(Metrics)
-
-rmse(teste$ChanceOfAdmit, predicoes.rna)
+rmse(teste$ChanceOfAdmit, predicoes.rna_hold_out)
 "
 [1] 0.07313229
 "
 
 # Regresão RMSE - raiz quadrada do erro médio
-rmse_ <- function(valor_real, valor_estimado) {
-  return(1 - (sum((valor_real-valor_estimado)^2) / nrow(teste)))
-}
-rmse_(teste$ChanceOfAdmit, predicoes.rna)
+rmse_(teste$ChanceOfAdmit, predicoes.rna_hold_out)
 "
-[1] 0.9946517
+[1] 0.07313229
 "
 
 # Regressão R2 - Coeficiente de Determinação Múltipla
-r2 <- function(valor_real, valor_estimado) {
-  return(1 - (sum((valor_real - valor_estimado)^2) / sum((valor_real - mean(valor_estimado))^2)))
-}
-r2(teste$ChanceOfAdmit, predicoes.rna)
+r2(teste$ChanceOfAdmit, predicoes.rna_hold_out)
 "
-[1] 0.7404921
+[1] 0.7404621
 "
 
 # Regressão Syx - Erro padrão de Estimativa
-syx <- function(valor_real, valor_estimado) {
-  return(1 - (sum((valor_real-valor_estimado)^2) / (nrow(teste)-ncol(teste))))
-}
-syx(teste$ChanceOfAdmit, predicoes.rna)
+syx(teste$ChanceOfAdmit, predicoes.rna_hold_out)
 "
-[1] 0.9941763
+[1] 0.005823738
 "
 
 # Regressão Pearson com CV
-pearson <- function(valor_real, valor_estimado) {
-  return(
-    sum(
-      (valor_real-mean(valor_real)) * (valor_estimado-mean(valor_estimado))
-      ) /
-      (
-        sqrt(sum(valor_real-mean(valor_real))^2)*
-          sqrt(sum(valor_estimado-mean(valor_estimado))^2)
-        )
-    )
-}
-pearson(teste$ChanceOfAdmit, predicoes.rna)
+pearson(teste$ChanceOfAdmit, predicoes.rna_hold_out)
 "
 [1] 1.68825e+29
 "
 
 # Regressão MAE - Média Absoluta do erro
-mae <- function(valor_real, valor_estimado) {
-  return(1 - (sum((valor_real-valor_estimado)) / nrow(teste)))
-}
-mae(teste$ChanceOfAdmit, predicoes.rna)
+mae(teste$ChanceOfAdmit, predicoes.rna_hold_out)
 "
-[1] 1.001543
+[1] 0.05233998
 "
-
-# Regressão - Gráfico de Resíduos
-
 
 #.........................................................................
 
@@ -141,9 +154,9 @@ tuneGrid <- expand.grid(size = seq(from = 1, to = 10, by = 1),
                         decay = seq(from = 0.1, to = 0.9, by = 0.3))
 
 set.seed(37)
-rna <- train(ChanceOfAdmit~., data=treino, method="nnet", trainControl=control,
-             tuneGrid=tuneGrid, linout=T, MaxNWts=10000, maxit=2000, trace=F)
-rna
+rna_cv <- train(ChanceOfAdmit~., data=treino, method="nnet", trainControl=control,
+             tuneGrid=tuneGrid, linout=TRUE, MaxNWts=10000, maxit=2000, trace=FALSE)
+rna_cv
 "
 Neural Network 
 
@@ -192,70 +205,143 @@ The final values used for the model were size = 10 and decay = 0.1.
 "
 
 # Predições e métricas aplicadas na base teste
-predicoes.rna <- predict(rna, teste)
+predicoes.rna_cv <- predict(rna_cv, teste)
 
 # Cálculo das métricas Metrics - (rmse)
-rmse(teste$ChanceOfAdmit, predicoes.rna)
+rmse(teste$ChanceOfAdmit, predicoes.rna_cv)
 "
 [1] 0.06824529
 "
 
 # Regresão RMSE - raiz quadrada do erro médio
-rmse <- function(valor_real, valor_estimado) {
-  return(1 - (sum((valor_real-valor_estimado)^2) / nrow(teste)))
-}
-rmse(teste$ChanceOfAdmit, predicoes.rna)
+rmse_(teste$ChanceOfAdmit, predicoes.rna_cv)
 "
-[1] 0.9953426
+[1] 0.06824529
 "
 
 # Regressão R2 - Coeficiente de Determinação Múltipla
-r2(teste$ChanceOfAdmit, predicoes.rna)
+r2(teste$ChanceOfAdmit, predicoes.rna_cv)
 "
-R2 com Cross Validation parametrizado
-0.7740104
+[1] 0.7739899
 "
 
 #Regressão Syx com CV
-syx(teste$ChanceOfAdmit, predicoes.rna)
+syx(teste$ChanceOfAdmit, predicoes.rna_cv)
 "
-[1] 0.9949286
+[1] 0.005071412
 "
 
 #Regressão Pearson com CV
-pearson(teste$ChanceOfAdmit, predicoes.rna)
+pearson(teste$ChanceOfAdmit, predicoes.rna_cv)
 "
 [1] 2.623262e+29
 "
 
 #Regressão MAE - Média Absoluta do erro
-mae <- function(valor_real, valor_estimado) {
-  return(1 - (sum((valor_real-valor_estimado)) / nrow(teste)))
-}
-mae(teste$ChanceOfAdmit, predicoes.rna)
+mae(teste$ChanceOfAdmit, predicoes.rna_cv)
 "
-[1] 1.001367
+[1] 0.04677909
 "
-
-# Regressão - Gráfico de Resíduos
-
 
 #.........................................................................
 
-# Predições de novos casos
+# Executando o modelo com os melhores hiperparâmetros
+grid <- expand.grid(size = c(10), decay =c(0.1))
+
+set.seed(37)
+rna_melhor_modelo <- train(ChanceOfAdmit ~.,
+                           data = treino,
+                           method = "nnet",
+                           trainControl = control,
+                           tuneGrid = grid,
+                           linout=TRUE,
+                           MaxNWts=10000,
+                           maxit = 2000,
+                           trace=FALSE) 
+rna_melhor_modelo
+"
+Neural Network 
+
+402 samples
+  7 predictor
+
+No pre-processing
+Resampling: Bootstrapped (25 reps) 
+Summary of sample sizes: 402, 402, 402, 402, 402, 402, ... 
+Resampling results:
+
+  RMSE        Rsquared   MAE       
+  0.06410871  0.7960591  0.04784236
+
+Tuning parameter 'size' was held constant at a value of 10
+
+Tuning parameter 'decay' was held constant at a value of 0.1
+"
+
+# Predições e métricas aplicadas na base teste
+predicoes.rna_melhor_modelo <- predict(rna_melhor_modelo, teste)
+
+# Cálculo das métricas Metrics - (rmse)
+rmse(teste$ChanceOfAdmit, predicoes.rna_melhor_modelo)
+"
+[1] 0.06923073
+"
+
+# Regresão RMSE - raiz quadrada do erro médio
+rmse_(teste$ChanceOfAdmit, predicoes.rna_melhor_modelo)
+"
+[1] 0.06923073
+"
+
+# Regressão R2 - Coeficiente de Determinação Múltipla
+r2(teste$ChanceOfAdmit, predicoes.rna_melhor_modelo)
+"
+[1] 0.7674158
+"
+
+#Regressão Syx com CV
+syx(teste$ChanceOfAdmit, predicoes.rna_melhor_modelo)
+"
+[1] 0.005218928
+"
+
+#Regressão Pearson com CV
+pearson(teste$ChanceOfAdmit, predicoes.rna_melhor_modelo)
+"
+[1] 1.335397e+29
+"
+
+#Regressão MAE - Média Absoluta do erro
+mae(teste$ChanceOfAdmit, predicoes.rna_melhor_modelo)
+"
+[1] 0.04814263
+"
+
+#.........................................................................
+
+# Salvar o melhor modelo
+saveRDS(melhor_modelo_rna, "admissao_melhor_modelo_rna.rds")
+
+#.........................................................................
+
+# Aplicar o Melhor Modelo em predições de novos casos
 dados_novos_casos <- read.csv("https://raw.githubusercontent.com/marcos-bezerra/MachineLearning/main/Admissao_Regressao/Admissao_Dados_Novos_Casos.csv")
 View(dados_novos_casos)
 dim(dados_novos_casos)
 
 dados_novos_casos$Serial.No. <- NULL
-predicoes.rna <- predict(rna, dados_novos_casos)
+
+melhor_modelo <- readRDS("admissao_melhor_modelo_rna.rds")
+predicoes.rna <- predict(melhor_modelo, dados_novos_casos)
 resultado <- cbind(dados_novos_casos, predicoes.rna)
 View(resultado)
 
+#................................... Fim .................................
 
-###############################                 ##########################
-#                               KNN - Regressão                          #
-###############################                 ##########################
+
+##############################                 ##########################
+#                              KNN - Regressão                          #
+##############################                 ##########################
 
 # Prepara um grid com os valores de k que serão usados 
 tuneGrid <- expand.grid(k = c(1,3,5,7,9))
@@ -290,68 +376,63 @@ The final value used for the model was k = 9.
 # Aplica o modelo no arquivo de teste
 predicoes.knn <- predict(knn, teste)
 
-# Carrega a biblioteca e calcula as Métricas
-library(Metrics)
+# Cálculo das métricas Metrics - (rmse)
 rmse(teste$ChanceOfAdmit, predicoes.knn)
 "
-[1] 0.9929703
+[1] 0.08384332
 "
 
 # Regresão RMSE - raiz quadrada do erro médio
-rmse <- function(valor_real, valor_estimado) {
-  return(1 - (sum((valor_real-valor_estimado)^2) / nrow(teste)))
-}
-rmse(teste$ChanceOfAdmit, predicoes.knn)
+rmse_(teste$ChanceOfAdmit, predicoes.knn)
 "
-[1] 0.9929703
+[1] 0.08384332
 "
 
 # Regressão R2 - Coeficiente de Determinação Múltipla
-r2 <- function(valor_real, valor_estimado) {
-  return(1 - (sum((valor_real - valor_estimado)^2) / sum((valor_real - mean(valor_estimado))^2)))
-}
 r2(teste$ChanceOfAdmit, predicoes.knn)
 "
 [1] 0.6588849
 "
 
 # Regressão Syx - Erro padrão de Estimativa
-syx <- function(valor_real, valor_estimado) {
-  return(1 - (sum((valor_real-valor_estimado)^2) / (nrow(teste)-ncol(teste))))
-}
 syx(teste$ChanceOfAdmit, predicoes.knn)
 "
-[1] 0.9923445
+[1] 0.007654565
 "
 
 # Regressão Pearson com CV
-pearson <- function(valor_real, valor_estimado) {
-  return(
-    sum(
-      (valor_real-mean(valor_real)) * (valor_estimado-mean(valor_estimado))
-    ) /
-      (
-        sqrt(sum(valor_real-mean(valor_real))^2)*
-          sqrt(sum(valor_estimado-mean(valor_estimado))^2)
-      )
-  )
-}
 pearson(teste$ChanceOfAdmit, predicoes.knn)
 "
 [1] 1.370892e+29
 "
 
 # Regressão MAE - Média Absoluta do erro
-mae <- function(valor_real, valor_estimado) {
-  return(1 - (sum((valor_real-valor_estimado)) / nrow(teste)))
-}
 mae(teste$ChanceOfAdmit, predicoes.knn)
 "
-[1] 0.9990658
+[1] 0.06084354
 "
 
 # Regressão - Gráfico de Resíduos
+vlr_real = teste$ChanceOfAdmit
+vlr_predito = predicoes.knn
+vlr_residuos <- (vlr_real - vlr_predito)/vlr_real*100
 
+plot(
+  x = teste$ChanceOfAdmit, 
+  y = vlr_residuos,
+  main= "Gráfico de Resíduos",
+  xlab = "Predições",
+  ylab = "% Residuos",
+  pch= 42,
+  col= 3,
+  cex.main = 1.75,
+  col.axis= 8,
+  cex.axis = 1,
+  col.lab= 9,
+  cex.lab = 1.25,
+  abline(0,0)
+)
+grid()
 
 #.........................................................................
 
@@ -365,9 +446,9 @@ resultado <- cbind(dados_novos_casos, predicoes.knn)
 View(resultado)
 
 
-###############################                 ##########################
-#                               SVM - Regressão                          #
-###############################                 ##########################
+##############################                 ##########################
+#                              SVM - Regressão                          #
+##############################                 ##########################
 
 # Treinar SVM com a base de Treino
 set.seed(37)
@@ -397,67 +478,41 @@ The final values used for the model were sigma = 0.1894597 and C = 0.5.
 # Aplicar modelos treinados na base de Teste
 predicoes.svm <- predict(svm, teste)
 
-# Calcular as métricas
+# Cálculo das métricas Metrics - (rmse)
 rmse(teste$ChanceOfAdmit, predicoes.svm)
 "
-[1] 0.995091
+[1] 0.07006415
 "
 
 # Regresão RMSE - raiz quadrada do erro médio
-rmse_ <- function(valor_real, valor_estimado) {
-  return(1 - (sum((valor_real-valor_estimado)^2) / nrow(teste)))
-}
 rmse_(teste$ChanceOfAdmit, predicoes.svm)
 "
-[1] 0.995091
+[1] 0.07006415
 "
 
 # Regressão R2 - Coeficiente de Determinação Múltipla
-r2 <- function(valor_real, valor_estimado) {
-  return(1 - (sum((valor_real - valor_estimado)^2) / sum((valor_real - mean(valor_estimado))^2)))
-}
 r2(teste$ChanceOfAdmit, predicoes.svm)
 "
-[1] 0.7620843
+[1] 0.7617822
 "
 
 # Regressão Syx - Erro padrão de Estimativa
-syx <- function(valor_real, valor_estimado) {
-  return(1 - (sum((valor_real-valor_estimado)^2) / (nrow(teste)-ncol(teste))))
-}
 syx(teste$ChanceOfAdmit, predicoes.svm)
 "
-[1] 0.9946547
+[1] 0.00534534
 "
 
 # Regressão Pearson com CV
-pearson <- function(valor_real, valor_estimado) {
-  return(
-    sum(
-      (valor_real-mean(valor_real)) * (valor_estimado-mean(valor_estimado))
-    ) /
-      (
-        sqrt(sum(valor_real-mean(valor_real))^2)*
-          sqrt(sum(valor_estimado-mean(valor_estimado))^2)
-      )
-  )
-}
 pearson(teste$ChanceOfAdmit, predicoes.svm)
 "
 [1] 1.592568e+29
 "
 
 # Regressão MAE - Média Absoluta do erro
-mae <- function(valor_real, valor_estimado) {
-  return(1 - (sum((valor_real-valor_estimado)) / nrow(teste)))
-}
 mae(teste$ChanceOfAdmit, predicoes.svm)
 "
-[1] 1.005115
+[1] 0.04611024
 "
-
-# Regressão - Gráfico de Resíduos
-
 
 #.........................................................................
 
@@ -491,32 +546,28 @@ The final values used for the model were sigma = 0.1894597 and C = 1.
 # Aplicar modelos treinados na base de Teste
 predicoes.svm <- predict(svm, teste)
 
-# Calcular as métricas
+# Cálculo das métricas Metrics - (rmse)
 rmse(teste$ChanceOfAdmit, predicoes.svm)
 "
-[1] 0.9951644
+[1] 0.06953861
 "
 
 # Regresão RMSE - raiz quadrada do erro médio
-rmse <- function(valor_real, valor_estimado) {
-  return(1 - (sum((valor_real-valor_estimado)^2) / nrow(teste)))
-  }
-rmse(teste$ChanceOfAdmit, predicoes.svm)
+rmse_(teste$ChanceOfAdmit, predicoes.svm)
 "
-[1] 0.9951644
+[1] 0.06953861
 "
 
 # Regressão R2 - Coeficiente de Determinação Múltipla
 r2(teste$ChanceOfAdmit, predicoes.svm)
 "
-R2 com Cross Validation parametrizado
-0.7655416
+[1] 0.7653425
 "
 
 #Regressão Syx com CV
 syx(teste$ChanceOfAdmit, predicoes.svm)
 "
-[1] 0.9947345
+[1] 0.005265451
 "
 
 #Regressão Pearson com CV
@@ -526,16 +577,10 @@ pearson(teste$ChanceOfAdmit, predicoes.svm)
 "
 
 #Regressão MAE - Média Absoluta do erro
-mae <- function(valor_real, valor_estimado) {
-  return(1 - (sum((valor_real-valor_estimado)) / nrow(teste)))
-}
 mae(teste$ChanceOfAdmit, predicoes.svm)
 "
-[1] 1.004184
+[1] 0.04513253
 "
-
-# Regressão - Gráfico de Resíduos
-
 
 #.........................................................................
 
@@ -580,32 +625,28 @@ The final values used for the model were sigma = 0.01 and C = 10.
 # Aplicar modelos treinados na base de Teste
 predicoes.svm <- predict(svm, teste)
 
-# Calcular as métricas
+# Cálculo das métricas Metrics - (rmse)
 rmse(teste$ChanceOfAdmit, predicoes.svm)
 "
-[1] 0.9955327
+[1] 0.06683756
 "
 
 # Regresão RMSE - raiz quadrada do erro médio
-rmse <- function(valor_real, valor_estimado) {
-  return(1 - (sum((valor_real-valor_estimado)^2) / nrow(teste)))
-}
-rmse(teste$ChanceOfAdmit, predicoes.svm)
+rmse_(teste$ChanceOfAdmit, predicoes.svm)
 "
-[1] 0.9955327
+[1] 0.06683756
 "
 
 # Regressão R2 - Coeficiente de Determinação Múltipla
 r2(teste$ChanceOfAdmit, predicoes.svm)
 "
-R2 com Cross Validation parametrizado
-0.7836276
+0.7832178
 "
 
 #Regressão Syx com CV
 syx(teste$ChanceOfAdmit, predicoes.svm)
 "
-[1] 0.9951357
+[1] 0.004864349
 "
 
 #Regressão Pearson com CV
@@ -615,26 +656,126 @@ pearson(teste$ChanceOfAdmit, predicoes.svm)
 "
 
 #Regressão MAE - Média Absoluta do erro
-mae <- function(valor_real, valor_estimado) {
-  return(1 - (sum((valor_real-valor_estimado)) / nrow(teste)))
-}
 mae(teste$ChanceOfAdmit, predicoes.svm)
 "
-[1] 1.006248
+[1] 0.04308562
 "
-
-# Regressão - Gráfico de Resíduos
-
 
 #.........................................................................
 
-# Predições de novos casos
+# Executando o modelo com os melhores hiperparâmetros
+grid <- expand.grid(size = c(1), decay =c(0.1894597))
+
+set.seed(37)
+melhor_modelo_svm <- train(ChanceOfAdmit ~.,
+                           data = treino,
+                           method = "nnet",
+                           trainControl = control,
+                           tuneGrid = grid,
+                           linout=TRUE,
+                           MaxNWts=10000,
+                           maxit = 2000,
+                           trace=FALSE) 
+melhor_modelo_svm
+"
+Neural Network 
+
+402 samples
+  7 predictor
+
+No pre-processing
+Resampling: Bootstrapped (25 reps) 
+Summary of sample sizes: 402, 402, 402, 402, 402, 402, ... 
+Resampling results:
+
+  RMSE        Rsquared   MAE       
+  0.07717116  0.7033269  0.05877439
+
+Tuning parameter 'size' was held constant at a value of 1
+
+Tuning parameter 'decay' was held constant at a value
+ of 0.1894597
+"
+
+# Predições e métricas aplicadas na base teste
+predicoes.svm <- predict(melhor_modelo_svm, teste)
+
+# Cálculo das métricas Metrics - (rmse)
+rmse(teste$ChanceOfAdmit, predicoes.svm)
+"
+[1] 0.08069547
+"
+
+# Regresão RMSE - raiz quadrada do erro médio
+rmse_(teste$ChanceOfAdmit, predicoes.svm)
+"
+[1] 0.08069547
+"
+
+# Regressão R2 - Coeficiente de Determinação Múltipla
+r2(teste$ChanceOfAdmit, predicoes.svm)
+"
+[1] 0.6840046
+"
+
+#Regressão Syx com CV
+syx(teste$ChanceOfAdmit, predicoes.svm)
+"
+[1] 0.007090582
+"
+
+#Regressão Pearson com CV
+pearson(teste$ChanceOfAdmit, predicoes.svm)
+"
+[1] 1.617527e+30
+"
+
+#Regressão MAE - Média Absoluta do erro
+mae(teste$ChanceOfAdmit, predicoes.svm)
+"
+[1] 0.058217
+"
+
+#.........................................................................
+
+# Salvar o melhor modelo
+saveRDS(melhor_modelo_svm, "admissao_melhor_modelo_svm.rds")
+
+#.........................................................................
+
+# Aplicar o Melhor Modelo em predições de novos casos
 dados_novos_casos <- read.csv("https://raw.githubusercontent.com/marcos-bezerra/MachineLearning/main/Admissao_Regressao/Admissao_Dados_Novos_Casos.csv")
 View(dados_novos_casos)
 dim(dados_novos_casos)
 
 dados_novos_casos$Serial.No. <- NULL
-predicoes.svm <- predict(svm, dados_novos_casos)
+
+melhor_modelo <- readRDS("admissao_melhor_modelo_svm.rds")
+predicoes.svm <- predict(melhor_modelo, dados_novos_casos)
 resultado <- cbind(dados_novos_casos, predicoes.svm)
 View(resultado)
+
+#.........................................................................
+
+# Gráfico de Resíduos da técnica com parâmetro de maior R2
+vlr_real = teste$ChanceOfAdmit
+vlr_predito = predicoes.rna
+vlr_residuos <- (vlr_real - vlr_predito)/vlr_real*100
+
+plot(
+  x = teste$ChanceOfAdmit, 
+  y = vlr_residuos,
+  main= "Gráfico de Resíduos",
+  xlab = "Predições",
+  ylab = "% Residuos",
+  pch= 42,
+  col= 3,
+  cex.main = 1.75,
+  col.axis= 8,
+  cex.axis = 1,
+  col.lab= 9,
+  cex.lab = 1.25,
+  abline(0,0)
+  )
+grid()
 
